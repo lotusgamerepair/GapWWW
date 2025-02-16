@@ -1,1 +1,47 @@
-../assets/package-infos.json
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.25;
+
+import "IFTSO.sol";
+import "GoogleCloudTEE.sol";
+
+contract AIDynamicRiskSwap {
+    IFTSO public immutable ftso;
+    GoogleCloudTEE public teeProcessor;
+    
+    struct Policy {
+        uint256 coverageAmount;
+        uint256 expiration;
+        bytes32 encryptedRiskModel; // AI model hash in TEE
+    }
+
+    mapping(address => Policy) public policies;
+
+    event PolicyIssued(address indexed user, uint256 amount, bytes32 modelHash);
+    event ClaimExecuted(address indexed user, uint256 payout);
+
+    constructor(address _ftso, address _tee) {
+        ftso = IFTSO(_ftso);
+        teeProcessor = GoogleCloudTEE(_tee);
+    }
+
+    function purchaseCoverage(uint256 duration, bytes calldata riskParams) external payable {
+        (uint256 price,) = ftso.getCurrentPrice();
+        bytes32 modelHash = teeProcessor.trainRiskModel(msg.sender, riskParams, price);
+        
+        policies[msg.sender] = Policy({
+            coverageAmount: msg.value,
+            expiration: block.timestamp + duration,
+            encryptedRiskModel: modelHash
+        });
+        
+        emit PolicyIssued(msg.sender, msg.value, modelHash);
+    }
+
+    function executeClaim(address protocol) external {
+        require(teeProcessor.verifyExploit(protocol, policies[msg.sender].encryptedRiskModel), "No valid exploit");
+        uint256 payout = policies[msg.sender].coverageAmount;
+        
+        payable(msg.sender).transfer(payout);
+        emit ClaimExecuted(msg.sender, payout);
+    }
+}../assets/package-infos.json
