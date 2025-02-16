@@ -1,0 +1,31 @@
+# .github/workflows/deploy.yml
+name: Auto-Deploy-Flare
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+      - run: npm ci
+      - run: npx hardhat compile
+      - name: Deploy to Songbird Testnet
+        run: npx hardhat run scripts/deploy.js --network songbird
+        env:
+          PRIVATE_KEY: ${{ secrets.SGB_DEPLOYER }}
+          FTSO_ADDRESS: ${{ secrets.SGB_FTSO }}
+          TEE_ADDRESS: ${{ secrets.GOOGLE_TEE }}
+      - name: Deploy to Flare Mainnet
+        if: github.ref == 'refs/heads/main'
+        run: npx hardhat run scripts/deploy.js --network flare
+        env:
+          PRIVATE_KEY: ${{ secrets.FLR_DEPLOYER }}
+          FTSO_ADDRESS: ${{ secrets.FLR_FTSO }}
+          TEE_ADDRESS: ${{ secrets.GOOGLE_TEE }}
